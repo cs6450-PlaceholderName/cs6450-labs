@@ -25,7 +25,7 @@ func Dial(addr string) *Client {
 	return &Client{rpcClient}
 }
 
-// Send a batch of keys to retrieve
+// Send a batch of keys to retrieve synchronously
 func (client *Client) Get_Synch_Batch(keys []string) []string {
 	request := kvs.Get_Batch_Request{
 		Keys: keys,
@@ -39,7 +39,7 @@ func (client *Client) Get_Synch_Batch(keys []string) []string {
 	return response.Values
 }
 
-// Send a batch of key-value pairs to modify
+// Send a batch of key-value pairs to modify synchronously
 func (client *Client) Put_Synch_Batch(putData map[string]string) {
 	request := kvs.Put_Batch_Request{
 		Data: putData,
@@ -51,7 +51,7 @@ func (client *Client) Put_Synch_Batch(putData map[string]string) {
 	}
 }
 
-// Asynchronous counterparts
+// Asynchronous Get and Put counterparts
 func (client *Client) Get_Asynch_Batch(keys []string) *rpc.Call {
 	request := kvs.Get_Batch_Request{
 		Keys: keys,
