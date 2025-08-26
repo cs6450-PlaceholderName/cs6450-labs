@@ -26,12 +26,12 @@ func Dial(addr string) *Client {
 }
 
 // Send a batch of keys to retrieve
-func (client *Client) BatchGet(keys []string) []string {
-	request := kvs.BatchGetRequest{
+func (client *Client) Get_Synch_Batch(keys []string) []string {
+	request := kvs.Get_Batch_Request{
 		Keys: keys,
 	}
-	response := kvs.BatchGetResponse{}
-	err := client.rpcClient.Call("KVService.BatchGet", &request, &response)
+	response := kvs.Get_Batch_Response{}
+	err := client.rpcClient.Call("KVService.Get_Batch", &request, &response)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,18 +40,47 @@ func (client *Client) BatchGet(keys []string) []string {
 }
 
 // Send a batch of key-value pairs to modify
-func (client *Client) BatchPut(putData map[string]string) {
-	request := kvs.BatchPutRequest{
+func (client *Client) Put_Synch_Batch(putData map[string]string) {
+	request := kvs.Put_Batch_Request{
 		Data: putData,
 	}
-	//response := kvs.BatchPutResponse{}
-	err := client.rpcClient.Call("KVService.BatchPut", &request, nil)
+	//response := kvs.Put_Batch_Response{}
+	err := client.rpcClient.Call("KVService.Put_Batch", &request, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func runClient(id int, addr string, done *atomic.Bool, workload *kvs.Workload, resultsCh chan<- uint64) {
+// Asynchronous counterparts
+func (client *Client) Get_Asynch_Batch(keys []string) *rpc.Call {
+	request := kvs.Get_Batch_Request{
+		Keys: keys,
+	}
+	response := kvs.Get_Batch_Response{}
+
+	call := client.rpcClient.Go("KVService.Get_Batch", &request, &response, nil)
+	if call.Error != nil {
+		log.Fatal(call.Error)
+	}
+
+	return call
+}
+
+func (client *Client) Put_Asynch_Batch(putData map[string]string) *rpc.Call {
+	request := kvs.Put_Batch_Request{
+		Data: putData,
+	}
+	response := kvs.Put_Batch_Response{}
+
+	call := client.rpcClient.Go("KVService.Put_Batch", &request, &response, nil)
+	if call.Error != nil {
+		log.Fatal(call.Error)
+	}
+
+	return call
+}
+
+func runClient(id int, addr string, done *atomic.Bool, workload *kvs.Workload, resultsCh chan<- uint64, asynch bool) {
 	client := Dial(addr)
 
 	value := strings.Repeat("x", 128)
@@ -77,12 +106,33 @@ func runClient(id int, addr string, done *atomic.Bool, workload *kvs.Workload, r
 			opsCompleted++
 		}
 
-		// Send only 2 RPC calls.
-		if len(getKeys) > 0 {
-			client.BatchGet(getKeys)
-		}
-		if len(putData) > 0 {
-			client.BatchPut(putData)
+		// Handle calls diferently based on RPC flavor (synchronous vs asynchronous)
+		if asynch {
+			var calls []*rpc.Call
+
+			// Send only 2 RPC calls, each a batch
+			if len(getKeys) > 0 {
+				calls = append(calls, client.Get_Asynch_Batch(getKeys))
+			}
+			if len(putData) > 0 {
+				calls = append(calls, client.Put_Asynch_Batch(putData))
+			}
+
+			// Wait for all asynchronous calls to complete.
+			// Similar to what we did in HW1.
+			// call.Done is a channel which signals when the call was finished
+			// Response data is stored in call.Reply (NEEDS SOME TESTING)
+			for _, call := range calls {
+				<-call.Done
+			}
+		} else {
+			// Send only 2 RPC calls, each a batch
+			if len(getKeys) > 0 {
+				client.Get_Synch_Batch(getKeys)
+			}
+			if len(putData) > 0 {
+				client.Put_Synch_Batch(putData)
+			}
 		}
 	}
 
@@ -109,6 +159,10 @@ func main() {
 	theta := flag.Float64("theta", 0.99, "Zipfian distribution skew parameter")
 	workload := flag.String("workload", "YCSB-B", "Workload type (YCSB-A, YCSB-B, YCSB-C)")
 	secs := flag.Int("secs", 30, "Duration in seconds for each client to run")
+
+	// Change this value to run asynchronously
+	asynch := flag.Bool("asynch", false, "Enable asynchronous RPC calls")
+
 	flag.Parse()
 
 	if len(hosts) == 0 {
@@ -119,8 +173,9 @@ func main() {
 		"hosts %v\n"+
 			"theta %.2f\n"+
 			"workload %s\n"+
-			"secs %d\n",
-		hosts, *theta, *workload, *secs,
+			"secs %d\n"+
+			"Asynch RPC %t\n",
+		hosts, *theta, *workload, *secs, *asynch,
 	)
 
 	start := time.Now()
@@ -132,7 +187,7 @@ func main() {
 	clientId := 0
 	go func(clientId int) {
 		workload := kvs.NewWorkload(*workload, *theta)
-		runClient(clientId, host, &done, workload, resultsCh)
+		runClient(clientId, host, &done, workload, resultsCh, *asynch)
 	}(clientId)
 
 	time.Sleep(time.Duration(*secs) * time.Second)
