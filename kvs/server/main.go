@@ -159,8 +159,8 @@ func (kv *KVService) printStats() {
 func main() {
 	cpuprofile := flag.String("cpuprofile", "", "write cpu profile in specified directory")
 	port := flag.String("port", "8080", "Port to run the server on")
-	numShards := flag.Int("numshards", 10, "number of shards to use")
-	numReplicas := flag.Int("numreplicas", 10, "number of replicas")
+	numShards := flag.Int("numshards", 1, "number of shards per server")
+	numReplicas := flag.Int("numreplicas", 10, "number of replicas this server guards")
 
 	flag.Parse()
 

@@ -25,6 +25,37 @@ func Dial(addr string) *Client {
 	return &Client{rpcClient}
 }
 
+// sharding ---------------------------------
+func fnvHash(data string) uint32 {
+// TODO: the current hope is to "just copy hashing over from the server code"
+// currently I'm remembering that this is easier said than done,
+// as a batch request is directed at a single server.
+// (with maybe some caveats- if we wanted to, we could have another proxy by the service)
+// If our servers are organized to contain a set of shards,
+// we should have batch requests reflect this-
+// that is, every batch request directed to a single server
+// MUST have the same hash, or be appropriate for that server's set of shards.
+// 
+// This brings back my previous point of potentially aggregating RPC calls
+// in some sort of buffer before actually sending off the batch request.
+// Can see my rant on this starting here in the main discord server:
+// https://discord.com/channels/1405934231305326693/1405934231305326696/1410717479369572503
+// I would really like to get approval on this from the team before continuing.
+// I see these options as being viable:
+// - batching per server, and per shard, aggregating on the client side
+// - have our clients effectively only communicate directly with a proxy on the service side
+// - Something else, possibly after Artem's linearizable-branching branch is developed more
+	const prime = 16777619
+	hash := uint32(2166136261)
+
+	for i := 0; i < len(data); i++ {
+		hash ^= uint32(data[i])
+		hash *= prime
+	}
+
+	return hash
+}
+
 // Send a batch of keys to retrieve synchronously
 func (client *Client) Get_Synch_Batch(keys []string) []string {
 	request := kvs.Get_Batch_Request{
