@@ -25,14 +25,19 @@ Any performance graphs and visualizations for the above
 
 # Design
 
-Changes you made to the design and what effect they had on performance
-A rationale for these design choices
-Trade-offs and design alternatives considered
-Any performance bottleneck analyses you did to arrive at the above conclusions
-Strategies implemented so far:
-• Batching
-• Sharding
-• Asynchronous RPC requests
+We implemented the following:
+
+## Batching
+todo
+## Sharding
+todo
+## Client-side parallelism
+todo
+## Asynch RPC 
+todo
+## At least once scheme
+todo
+
 
 # Reproducibility
 
