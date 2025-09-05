@@ -1,4 +1,4 @@
-# Useful commands
+# Execution instructions
 
 ssh node[num] 
 exit to leave
@@ -27,15 +27,15 @@ Any performance graphs and visualizations for the above
 
 We implemented the following:
 
-## Batching
+### Batching
+Generating an RPC call per each Get/Put operation is costly and inefficient. Instead, we implemented request batching, where a batch of operations is sent in a single RPC call. This significantly reduces networking overhead, allowing for better performance both on clients and servers.
+### Asynch RPC 
+By default, client made RPC calls synchronously to the server, meaning that each request was waited upon until completion. Instead, we implemented asynchronous RPC calls, significantly boosting client throughput.  
+### Sharding
 todo
-## Sharding
+### Client-side parallelism
 todo
-## Client-side parallelism
-todo
-## Asynch RPC 
-todo
-## At least once scheme
+### At least once scheme
 todo
 
 
