@@ -41,9 +41,18 @@ todo
 
 # Reproducibility
 
+run `./run-cluster.sh <server_count> <client_count> "" "-asynch=<True/False>"`
+
+For example, for best results:
+
+`./run-cluster.sh 4 4 ""a "-asynch=True"`
+
 Step-by-step instructions to reproduce results
+
 Hardware requirements and setup
+
 Software dependencies and installation if anything more than go, etc
+
 Configuration parameters and their effects in particular if you’ve added ”knobs”
 
 # Reflections
