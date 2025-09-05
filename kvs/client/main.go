@@ -79,8 +79,6 @@ func (client *Client) Send_Asynch_Batch(putData []kvs.BatchOperation) *rpc.Call 
 	}
 	response := kvs.Batch_Response{}
 
-	call := client.rpcClient.Go("KVService.Process_Batch", &request, &response, nil)
-
 	// Create a synthetic Call to return immediately
 	resultCall := &rpc.Call{
 		Done: make(chan *rpc.Call, 1),
@@ -116,12 +114,6 @@ func (client *Client) Send_Asynch_Batch(putData []kvs.BatchOperation) *rpc.Call 
 	}()
 
 	return resultCall
-}
-
-func hashKey(key string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(key))
-	return h.Sum32()
 }
 
 func hashKey(key string) uint32 {
