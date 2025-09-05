@@ -1,26 +1,17 @@
-# Execution instructions
-
-ssh node[num] 
-exit to leave
-
-ip addr
-
-./run-cluster.sh 1 1 "" "-asynch"
-
-nproc - number of cores
-
-
-
-# notes
-runcluster script autmaitcally if give num servers will make the remaining one's clients. also as client arg it will give all the server ip:ports as hosts which ends up in hostlist.
-
 # Results
 
-Final throughput numbers
-Some rough numbers on hardware utilization metrics (CPU, memory, network)
-Scaling characteristics (how performance changes with cluster size and/or with increasing
-offered client load)
+Final throughput numbers:
+
+`todo todo todo`
+
+Hardware utilization metrics (from pprof):
+
+`todo todo todo`
+
+Scaling characteristics (how performance changes with cluster size and/or with increasing offered client load)
+
 At a minimum, if your approach scales run it with small scale and larger scale
+
 Any performance graphs and visualizations for the above 
 
 # Design
@@ -61,4 +52,10 @@ What you learned from the assignment
 What optimizations worked well and why
 What didn’t work and lessons learned
 Ideas for further improvement
-A short note on individual contributions from each team member
+
+Individual contributions from each team member:
+
+- Artem: batching, asynch RPC
+- Ash: 
+- Brendon:
+- Cayden:
