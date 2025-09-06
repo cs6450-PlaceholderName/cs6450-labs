@@ -4,7 +4,7 @@
 
 2 clients and 2 servers: total `~17M op/s`
 
-4 clients and 4 servers: total `~22M op/s`
+4 clients and 4 servers: total `~todo`
 
 ## Hardware utilization metrics
 
