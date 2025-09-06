@@ -12,7 +12,7 @@ pprof results:
 
 `todo todo todo`
 
-htop server sample during execution:
+htop server sample during execution, showing fantastic CPU utilization:
 
 ![htop sample result](images/htop_node0.png)
 
