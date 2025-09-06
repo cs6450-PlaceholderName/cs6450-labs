@@ -1,42 +1,54 @@
 # Results
 
-Final throughput numbers:
+## Final throughput numbers:
 
 `todo todo todo`
 
-Hardware utilization metrics (from pprof):
+## Hardware utilization metrics (from pprof):
 
 `todo todo todo`
 
-Scaling characteristics (how performance changes with cluster size and/or with increasing offered client load)
+## Scaling characteristics (how performance changes with cluster size and/or with increasing offered client load)
 
 At a minimum, if your approach scales run it with small scale and larger scale
 
+## Performance & Scale Charts
 Any performance graphs and visualizations for the above 
 
 # Design
 
+## Successful Ideas
 We implemented the following:
-
 ### Batching
-Generating an RPC call per each Get/Put operation is costly and inefficient. Instead, we implemented request batching, where a batch of operations is sent in a single RPC call. This significantly reduces networking overhead, allowing for better performance both on clients and servers.
-### Asynch RPC 
-By default, client made RPC calls synchronously to the server, meaning that each request was waited upon until completion. Instead, we implemented asynchronous RPC calls, significantly boosting client throughput.  
+Generating an RPC call per each Get/Put operation is costly and inefficient. Instead, we implemented request batching, where a batch of operations is sent in a single RPC call. This significantly reduces networking overhead, allowing for better performance both on clients and servers. We also found that a signficant amount of time was spent serializing and deserializing rpc payloads, calling handler functions, and most crucially spinning up a new goroutine per request (even over the same TCP connection). This operational logic was far more costly then the business logic which was often a lookup into the L1 cache.
+### Async RPC 
+By default, clients made RPC calls synchronously to the server, meaning that each request was waited upon until completion. Instead, we implemented asynchronous RPC calls, significantly boosting client throughput. This removed head of line blocking between batches while not affecting linearizability from the servers POV, as the client gives up guarantees by not awaiting.
 ### Sharding
-todo
+We sharded between and within machines. The client was responsible for consistently routing a key to the same server. Each server itself had many shards each with their own Reader Writer lock. This simulated a sharding + bucket lock design. The goal of this was to make each machine have roughly equal load and reduce lock contention within machines, so that the CPU was not idle. We implemented this after batching so the CPU was no longer hitting capactiy on small payloads because it didn't have to deal with RPC overhead.
 ### Client-side parallelism
-todo
+Each client has multiple go routines pulling keys and sending batched request. This is required to maxamize CPU utilization on the client and servers (do to increased load). Just running multiple clients on multiple machines is not enough. One 16 core machine requires around 20 client routines to go from 50% to 1600% CPU utilization.
 ### At least once scheme
 todo
 
+## Failed Ideas
+We implemented the following without getting performance improvments:
+### Fine-grained locking
+Storing a (value, RWlock) tuple to have fine grained key locking had a 2x slowdown because the extra controlflow was signficiantly more expensive than the business operations. 
+
+### Worker Threads
+We attempted to maintain a pool of workers and distribute. batch workloads among them via channels but found serializable execution to be as fast if not faster. Although having a pool solved the problem of goroutine creation overhead, switching on each action and routing to the correct channel and then awaiting in the case of a put on a temporary channel or state proved costly. 
+
 
 # Reproducibility
+Our experiments were done on 8 CloudLab m510 machines.
 
 run `./run-cluster.sh <server_count> <client_count> "" "-asynch=<True/False>"`
 
 For example, for best results:
 
-`./run-cluster.sh 4 4 ""a "-asynch=True"`
+`./run-cluster.sh 4 4 "-numshards 1000" "-asynch=True -connections 70"`
+
+The number of shards is per server, so in total you will have server_count * numshards. Connections is how many goroutines each client machine runs. For optimal performance we suggest doing an exponential grid search followed by linear finetuning.
 
 Step-by-step instructions to reproduce results
 
@@ -48,6 +60,8 @@ Configuration parameters and their effects in particular if you’ve added ”kn
 
 # Reflections
 
+Peeling back the onion is an invarient of optimizing. Being able to understand typical latencies for network and machine operations and in what cases they occur allow you to measure what matters. This should be done before optimizing as it is often less time consuming and pays dividends. But, just cause you see opportunity--low cpu usage, bad IPC, cache misses, high cost functions, blocking, lock contention--doesn't mean it will be easy to fix as the solutions come with tradeoffs or unexpected consequences. And sometimes the Usual Suspects drive you up the wrong wall. 
+
 What you learned from the assignment
 What optimizations worked well and why
 What didn’t work and lessons learned
@@ -57,5 +71,5 @@ Individual contributions from each team member:
 
 - Artem: batching, asynch RPC
 - Ash: 
-- Brendon:
+- Brendon: client side concurrency, sharding, failed ideas
 - Cayden:
