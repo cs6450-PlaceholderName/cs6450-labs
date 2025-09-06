@@ -18,6 +18,8 @@ htop server sample during execution, showing fantastic CPU utilization:
 
 ## Scaling characteristics 
 
+Due to sharding and high levels of parallelism, our solution scales well with an increased number of machines. Below are the metrics:
+
 1 client 1 sever: `todo`
 
 2 client 2 severs: `~17M op/s`
@@ -61,20 +63,17 @@ For example, for best results:
 
 `./run-cluster.sh 4 4 "-numshards 1000" "-asynch=True -connections 70"`
 
-The number of shards is per server, so in total you will have server_count * numshards. Connections is how many goroutines each client machine runs. For optimal performance we suggest doing an exponential grid search followed by linear finetuning.
+The number of shards is per server, so in total you will have `server_count * numshards`. 
 
-`-asynch` flag enables asynchronous RPC calls.
+`-connections` is how many goroutines each client machine runs. For optimal performance we suggest doing an exponential grid search followed by linear finetuning.
+
+`-asynch` flag enables asynchronous RPC calls. Choose `true` for best performance.
 
 `-connections` flag defines the number of parallel threads per client. 
 
 # Reflections
 
 Peeling back the onion is an invarient of optimizing. Being able to understand typical latencies for network and machine operations and in what cases they occur allow you to measure what matters. This should be done before optimizing as it is often less time consuming and pays dividends. But, just cause you see opportunity--low cpu usage, bad IPC, cache misses, high cost functions, blocking, lock contention--doesn't mean it will be easy to fix as the solutions come with tradeoffs or unexpected consequences. And sometimes the Usual Suspects drive you up the wrong wall. 
-
-What you learned from the assignment
-What optimizations worked well and why
-What didn’t work and lessons learned
-Ideas for further improvement
 
 Individual contributions from each team member:
 
