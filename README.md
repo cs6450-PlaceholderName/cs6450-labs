@@ -1,12 +1,18 @@
 # Results
 
-## Final throughput numbers:
+## Final throughput numbers
 
 `todo todo todo`
 
-## Hardware utilization metrics (from pprof):
+## Hardware utilization metrics
+
+pprof results:
 
 `todo todo todo`
+
+htop server sample during execution:
+
+![htop sample result](images/htop_node0.png)
 
 ## Scaling characteristics (how performance changes with cluster size and/or with increasing offered client load)
 
