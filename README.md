@@ -2,7 +2,9 @@
 
 ## Final throughput numbers
 
-`todo todo todo`
+2 clients and 2 servers: total `~17M op/s`
+
+4 clients and 4 servers: total `~22M op/s`
 
 ## Hardware utilization metrics
 
