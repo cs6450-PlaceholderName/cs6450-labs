@@ -42,7 +42,7 @@ We attempted to maintain a pool of workers and distribute. batch workloads among
 # Reproducibility
 Our experiments were done on 8 CloudLab m510 machines.
 
-run `./run-cluster.sh <server_count> <client_count> "" "-asynch=<True/False>"`
+run `./run-cluster.sh <server_count> <client_count> "-numshards <#>" "-asynch=<True/False> -connections <#>"`
 
 For example, for best results:
 
@@ -50,13 +50,9 @@ For example, for best results:
 
 The number of shards is per server, so in total you will have server_count * numshards. Connections is how many goroutines each client machine runs. For optimal performance we suggest doing an exponential grid search followed by linear finetuning.
 
-Step-by-step instructions to reproduce results
+`-asynch` flag enables asynchronous RPC calls.
 
-Hardware requirements and setup
-
-Software dependencies and installation if anything more than go, etc
-
-Configuration parameters and their effects in particular if you’ve added ”knobs”
+`-connections` flag defines the number of parallel threads per client. 
 
 # Reflections
 
