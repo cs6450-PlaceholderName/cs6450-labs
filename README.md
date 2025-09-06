@@ -16,12 +16,17 @@ htop server sample during execution, showing fantastic CPU utilization:
 
 ![htop sample result](images/htop_node0.png)
 
-## Scaling characteristics (how performance changes with cluster size and/or with increasing offered client load)
+## Scaling characteristics 
 
-At a minimum, if your approach scales run it with small scale and larger scale
+1 client 1 sever: `todo`
+
+2 client 2 severs: `~17M op/s`
+
+4 clients 4 servers: `todo`
 
 ## Performance & Scale Charts
-Any performance graphs and visualizations for the above 
+
+Can put above into a chart, but I think we can get away without it.
 
 # Design
 
