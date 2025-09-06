@@ -26,10 +26,6 @@ Due to sharding and high levels of parallelism, our solution scales well with an
 
 4 clients 4 servers: `todo`
 
-## Performance & Scale Charts
-
-Can put above into a chart, but I think we can get away without it.
-
 # Design
 
 ## Successful Ideas
