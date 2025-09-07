@@ -47,6 +47,22 @@ We implement an at-least-once delivery guarantee through a combination of client
 
 The combination of unique request IDs, response caching, and retry logic ensures reliable message delivery without compromising data consistency, even when network partitions or server failures cause message loss or duplication.
 
+## Linearizability
+
+Given the previously described implementation details of, in particular, at-least-once semantics and batching, it becomes easy to recognize our key-value store as linearizable.
+In particular we recognize the linearization point as being a real element of the following common sequence:
+1. A client queues an RPC message into a batch message
+    - Note that this is done *in order* of receipt- that is to say that the batch message preserves the sequence of individual RPC messages.
+2. The batch message crosses the network to its corresponding shard. The client always receives a response, this is guaranteed by at-least-once semantics.
+4. In handling the batch message, the server handles each individual RPC message in the order preserved by the batch message.
+  - Effectively, each finalized RPC operation handled in this order guarantees a sequential history of a given object per batch message, reflected in the "batch response" from the server.
+6. In handling the individual RPC message, the worker routine locks relevant data structures and performs the requested action.
+   - **This locking of data structures** is considered the linearization point. Every action done when the lock is held is effectively atomic.
+   - This still linearizes in instances where multiple batch messages affecting the same data are processed concurrently due to the atomic guarantees of the lock.
+
+In essense, because we know that 1. the client always knows the "timeframe" in which the message is in transit due to at-least-once semantics, and that a linearization point exists for each individual RPC message,
+we know that this system is linearizable by definition.
+
 ## Failed Ideas
 We implemented the following without getting performance improvments:
 ### Fine-grained locking
@@ -84,6 +100,6 @@ We also believe the usual notion of "implement it simply first and then optimize
 Individual contributions from each team member:
 
 - Artem: batching, asynch RPC
-- Ash: coherency in client side sharding and batches, server-side sharding, hashing algorithms, "intelligent use of" locks, general refactoring
+- Ash: "per-shard", unified RPC message batching, server-side sharding, "intelligent use of" locks
 - Brendon: client side concurrency, sharding, failed ideas
 - Cayden: at-least-once semantics (request IDs and request cache/deduplication), general fixes and refactoring
