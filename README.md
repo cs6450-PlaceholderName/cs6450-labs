@@ -39,7 +39,13 @@ We sharded between and within machines. The client was responsible for consisten
 ### Client-side parallelism
 Each client has multiple go routines pulling keys and sending batched request. This is required to maxamize CPU utilization on the client and servers (do to increased load). Just running multiple clients on multiple machines is not enough. One 16 core machine requires around 20 client routines to go from 50% to 1600% CPU utilization.
 ### At least once scheme
-todo
+We implement an at-least-once delivery guarantee through a combination of client-side retry logic and server-side request deduplication:
+
+**Client-side retry mechanism**: Each batch request is assigned a unique request ID using cryptographically secure random generation. If an RPC call fails, the client retries up to 3 times with exponential backoff (100ms, 200ms, 400ms delays). This ensures requests are delivered at least once, even in the presence of network failures.
+
+**Server-side request deduplication**: The server maintains a request cache that maps request IDs to their corresponding responses. When processing a batch request, the server first checks if the request ID has been seen before. If found in the cache, it returns the cached response immediately without re-executing the operations. This prevents duplicate execution while maintaining the at-least-once guarantee.
+
+The combination of unique request IDs, response caching, and retry logic ensures reliable message delivery without compromising data consistency, even when network partitions or server failures cause message loss or duplication.
 
 ## Failed Ideas
 We implemented the following without getting performance improvments:
@@ -71,13 +77,13 @@ The number of shards is per server, so in total you will have `server_count * nu
 
 # Reflections
 
-Peeling back the onion is an invarient of optimizing. Being able to understand typical latencies for network and machine operations and in what cases they occur allow you to measure what matters. This should be done before optimizing as it is often less time consuming and pays dividends. But, just cause you see opportunity--low cpu usage, bad IPC, cache misses, high cost functions, blocking, lock contention--doesn't mean it will be easy to fix as the solutions come with tradeoffs or unexpected consequences. And sometimes the Usual Suspects drive you up the wrong wall.
+Peeling back the onion is an invariant of optimizing. Being able to understand typical latencies for network and machine operations and in what cases they occur allow you to measure what matters. This should be done before optimizing as it is often less time consuming and pays dividends. But, just cause you see opportunity—low cpu usage, bad IPC, cache misses, high cost functions, blocking, lock contention—doesn't mean it will be easy to fix as the solutions come with tradeoffs or unexpected consequences. And sometimes the Usual Suspects drive you up the wrong wall.
 
 We also believe the usual notion of "implement it simply first and then optimize." Having a correct implementation from the beginning can help distinguish from incorrect implementations during optimization. It also allows for more focused work, reliant on observations of bottlenecks.
 
 Individual contributions from each team member:
 
 - Artem: batching, asynch RPC
-- Ash: Coherency in client side sharding and batches, server-side sharding, hashing algorithms, "intelligent use of" locks, general refactoring
+- Ash: coherency in client side sharding and batches, server-side sharding, hashing algorithms, "intelligent use of" locks, general refactoring
 - Brendon: client side concurrency, sharding, failed ideas
-- Cayden:
+- Cayden: at-least-once semantics (request IDs and request cache/deduplication), general fixes and refactoring
