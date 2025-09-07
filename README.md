@@ -2,6 +2,8 @@
 
 ## Final throughput numbers
 
+1 client and 1 server: total `~8M op/s`
+
 2 clients and 2 servers: total `~17M op/s`
 
 4 clients and 4 servers: total `~33M op/s`
@@ -10,7 +12,28 @@
 
 pprof results:
 
-`todo todo todo`
+```
+(pprof) top5
+Showing nodes accounting for 109.42s, 26.16% of 418.28s total
+Dropped 516 nodes (cum <= 2.09s)
+Showing top 5 nodes out of 142
+      flat  flat%   sum%        cum   cum%
+    28.91s  6.91%  6.91%     37.66s  9.00%  runtime.findObject
+    22.55s  5.39% 12.30%    149.53s 35.75%  encoding/gob.(*Decoder).decodeStruct
+    20.08s  4.80% 17.10%     66.70s 15.95%  runtime.scanobject
+    19.36s  4.63% 21.73%     19.36s  4.63%  internal/runtime/maps.ctrlGroup.matchH2
+    18.52s  4.43% 26.16%     18.52s  4.43%  time.runtimeNow
+(pprof) top5 -cum
+Showing nodes accounting for 0.01s, 0.0024% of 418.28s total
+Dropped 516 nodes (cum <= 2.09s)
+Showing top 5 nodes out of 142
+      flat  flat%   sum%        cum   cum%
+     0.01s 0.0024% 0.0024%    169.15s 40.44%  net/rpc.(*service).call
+         0     0% 0.0024%    158.26s 37.84%  net/http.(*conn).serve
+         0     0% 0.0024%    158.25s 37.83%  net/http.(*ServeMux).ServeHTTP
+         0     0% 0.0024%    158.25s 37.83%  net/http.serverHandler.ServeHTTP
+         0     0% 0.0024%    158.25s 37.83%  net/rpc.(*Server).ServeHTTP
+```
 
 htop server sample during execution, showing fantastic CPU utilization:
 
