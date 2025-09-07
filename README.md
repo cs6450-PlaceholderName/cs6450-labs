@@ -4,7 +4,7 @@
 
 2 clients and 2 servers: total `~17M op/s`
 
-4 clients and 4 servers: total `~todo`
+4 clients and 4 servers: total `~33M op/s`
 
 ## Hardware utilization metrics
 
@@ -24,14 +24,14 @@ Due to sharding and high levels of parallelism, our solution scales well with an
 
 2 client 2 severs: `~17M op/s`
 
-4 clients 4 servers: `todo`
+4 clients 4 servers: `~33M op/s`
 
 # Design
 
 ## Successful Ideas
 We implemented the following:
 ### Batching
-Generating an RPC call per each Get/Put operation is costly and inefficient. Instead, we implemented request batching, where a batch of operations is sent in a single RPC call. This significantly reduces networking overhead, allowing for better performance both on clients and servers. We also found that a signficant amount of time was spent serializing and deserializing rpc payloads, calling handler functions, and most crucially spinning up a new goroutine per request (even over the same TCP connection). This operational logic was far more costly then the business logic which was often a lookup into the L1 cache.
+Generating an RPC call per each Get/Put operation is costly and inefficient. Instead, we implemented request batching, where a batch of operations is sent in a single RPC call. This significantly reduces networking overhead, allowing for better performance both on clients and servers. We also found that a signficant amount of time was spent serializing and deserializing rpc payloads, calling handler functions, and most crucially spinning up a new goroutine per request (even over the same TCP connection). This operational logic was far more costly then the business logic which was often a lookup into the L1 cache. Additionally, we introduced logic for intelligent use of locks in individual RPC messages (as opposed to during the entire batch) for higher throughput between threads.
 ### Async RPC 
 By default, clients made RPC calls synchronously to the server, meaning that each request was waited upon until completion. Instead, we implemented asynchronous RPC calls, significantly boosting client throughput. This removed head of line blocking between batches while not affecting linearizability from the servers POV, as the client gives up guarantees by not awaiting.
 ### Sharding
@@ -49,6 +49,8 @@ Storing a (value, RWlock) tuple to have fine grained key locking had a 2x slowdo
 ### Worker Threads
 We attempted to maintain a pool of workers and distribute. batch workloads among them via channels but found serializable execution to be as fast if not faster. Although having a pool solved the problem of goroutine creation overhead, switching on each action and routing to the correct channel and then awaiting in the case of a put on a temporary channel or state proved costly. 
 
+### Shard-agnostic batches
+Batching across different shards is costly by requiring a server-side proxy to redistribute per batch. We place the responsibility on client processes to organize individual RPC messages into shard-specific batch messages. For the purposes of this project, this is arguably simpler to reason about, as there are less moving parts, but more sophisticated schemas may opt for the proxy-reliant approach. This is usually due to simplicity of client implementation etc.
 
 # Reproducibility
 Our experiments were done on 8 CloudLab m510 machines.
@@ -69,11 +71,13 @@ The number of shards is per server, so in total you will have `server_count * nu
 
 # Reflections
 
-Peeling back the onion is an invarient of optimizing. Being able to understand typical latencies for network and machine operations and in what cases they occur allow you to measure what matters. This should be done before optimizing as it is often less time consuming and pays dividends. But, just cause you see opportunity--low cpu usage, bad IPC, cache misses, high cost functions, blocking, lock contention--doesn't mean it will be easy to fix as the solutions come with tradeoffs or unexpected consequences. And sometimes the Usual Suspects drive you up the wrong wall. 
+Peeling back the onion is an invarient of optimizing. Being able to understand typical latencies for network and machine operations and in what cases they occur allow you to measure what matters. This should be done before optimizing as it is often less time consuming and pays dividends. But, just cause you see opportunity--low cpu usage, bad IPC, cache misses, high cost functions, blocking, lock contention--doesn't mean it will be easy to fix as the solutions come with tradeoffs or unexpected consequences. And sometimes the Usual Suspects drive you up the wrong wall.
+
+We also believe the usual notion of "implement it simply first and then optimize." Having a correct implementation from the beginning can help distinguish from incorrect implementations during optimization. It also allows for more focused work, reliant on observations of bottlenecks.
 
 Individual contributions from each team member:
 
 - Artem: batching, asynch RPC
-- Ash: 
+- Ash: Coherency in client side sharding and batches, server-side sharding, hashing algorithms, "intelligent use of" locks, general refactoring
 - Brendon: client side concurrency, sharding, failed ideas
 - Cayden:
