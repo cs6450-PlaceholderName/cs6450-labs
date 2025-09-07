@@ -60,7 +60,7 @@ In particular we recognize the linearization point as being a real element of th
    - **This locking of data structures** is considered the linearization point. Every action done when the lock is held is effectively atomic.
    - This still linearizes in instances where multiple batch messages affecting the same data are processed concurrently due to the atomic guarantees of the lock.
 
-In essense, because we know that 1. the client always knows the "timeframe" in which the message is in transit due to at-least-once semantics, and that a linearization point exists for each individual RPC message,
+In essense, because we know that the client always knows the "timeframe" in which the message is in transit due to at-least-once semantics, and that a linearization point exists for each individual RPC message,
 we know that this system is linearizable by definition.
 
 ## Failed Ideas
