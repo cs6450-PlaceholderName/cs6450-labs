@@ -41,26 +41,20 @@ htop server sample during execution, showing fantastic CPU utilization:
 
 ## Scaling characteristics 
 
-Due to sharding and high levels of parallelism, our solution scales well with an increased number of machines. Below are the metrics:
-
-1 client 1 sever: `todo`
-
-2 client 2 severs: `~17M op/s`
-
-4 clients 4 servers: `~33M op/s`
+Our final throughput numbers (shown above) dempnstrate linear relationship between the number of machines and system throughput, showing that our solution scales well. This is achieved via sharding and high levels of parallelism.
 
 # Design
 
 ## Successful Ideas
 We implemented the following:
 ### Batching
-Generating an RPC call per each Get/Put operation is costly and inefficient. Instead, we implemented request batching, where a batch of operations is sent in a single RPC call. This significantly reduces networking overhead, allowing for better performance both on clients and servers. We also found that a signficant amount of time was spent serializing and deserializing rpc payloads, calling handler functions, and most crucially spinning up a new goroutine per request (even over the same TCP connection). This operational logic was far more costly then the business logic which was often a lookup into the L1 cache. Additionally, we introduced logic for intelligent use of locks in individual RPC messages (as opposed to during the entire batch) for higher throughput between threads.
-### Async RPC 
+Generating an RPC call per each Get/Put operation is costly and inefficient. Instead, we implemented request batching, where a batch of operations is sent in a single RPC call. This significantly reduces networking overhead, allowing for better performance both on clients and servers. We also found that a signficant amount of time was spent serializing and deserializing RPC payloads, calling handler functions, and most crucially spinning up a new goroutine per request (even over the same TCP connection). This operational logic was far more costly then the business logic which was often a lookup into the L1 cache. Additionally, we introduced logic for intelligent use of locks in individual RPC messages (as opposed to during the entire batch) for higher throughput between threads.
+### Asynchronous RPC 
 By default, clients made RPC calls synchronously to the server, meaning that each request was waited upon until completion. Instead, we implemented asynchronous RPC calls, significantly boosting client throughput. This removed head of line blocking between batches while not affecting linearizability from the servers POV, as the client gives up guarantees by not awaiting.
 ### Sharding
 We sharded between and within machines. The client was responsible for consistently routing a key to the same server. Each server itself had many shards each with their own Reader Writer lock. This simulated a sharding + bucket lock design. The goal of this was to make each machine have roughly equal load and reduce lock contention within machines, so that the CPU was not idle. We implemented this after batching so the CPU was no longer hitting capactiy on small payloads because it didn't have to deal with RPC overhead.
 ### Client-side parallelism
-Each client has multiple go routines pulling keys and sending batched request. This is required to maxamize CPU utilization on the client and servers (do to increased load). Just running multiple clients on multiple machines is not enough. One 16 core machine requires around 20 client routines to go from 50% to 1600% CPU utilization.
+Each client has multiple go routines pulling keys and sending batched request. This is required to maxamize CPU utilization on the client and servers (due to increased load). Just running multiple clients on multiple machines is not enough. One 16 core machine requires around 20 client routines to go from 50% to 1600% CPU utilization.
 ### At least once scheme
 We implement an at-least-once delivery guarantee through a combination of client-side retry logic and server-side request deduplication:
 
