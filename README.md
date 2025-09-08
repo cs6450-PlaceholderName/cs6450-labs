@@ -54,7 +54,7 @@ By default, clients made RPC calls synchronously to the server, meaning that eac
 ### Sharding
 We sharded between and within machines. The client was responsible for consistently routing a key to the same server. Each server itself had many shards each with their own Reader Writer lock. This simulated a sharding + bucket lock design. The goal of this was to make each machine have roughly equal load and reduce lock contention within machines, so that the CPU was not idle. We implemented this after batching so the CPU was no longer hitting capactiy on small payloads because it didn't have to deal with RPC overhead.
 ### Client-side parallelism
-Each client has multiple go routines pulling keys and sending batched request. This is required to maxamize CPU utilization on the client and servers (due to increased load). Just running multiple clients on multiple machines is not enough. One 16 core machine requires around 20 client routines to go from 50% to 1600% CPU utilization.
+Each client has multiple go routines pulling keys and sending batched request. This is required to maxamize CPU utilization on the client and servers (due to increased load). Just running multiple clients on multiple machines is not enough, so we ran experiments to optimize the number of clients per machine. One 16 core machine requires around 20 client routines to maximize CPU utilization and throughput. 
 ### At least once scheme
 We implement an at-least-once delivery guarantee through a combination of client-side retry logic and server-side request deduplication:
 
