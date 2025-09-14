@@ -29,7 +29,8 @@ func Dial(addr string) *Client {
 	return &Client{rpcClient}
 }
 
-func generateRequestID() int64 {
+// Todo: change ID generation logic for serializability
+func generateTransactionID() int64 {
 	var bytes [8]byte
 	_, err := rand.Read(bytes[:])
 	if err != nil {
@@ -38,20 +39,28 @@ func generateRequestID() int64 {
 	return int64(binary.LittleEndian.Uint64(bytes[:]))
 }
 
-// Sends a batch of RPC calls synchronously with retry logic
-func (client *Client) Send_Synch_Batch(putData []kvs.BatchOperation) []string {
-	requestID := generateRequestID()
-	request := kvs.Batch_Request{
-		RequestID: requestID,
-		Data:      putData,
+func (client *Client) Commit() {
+	// TODO
+}
+
+func (client *Client) Abort() {
+	// TODO
+}
+
+// Sends a transaction of 3 RPC calls synchronously with retry logic
+func (client *Client) Begin(putData [3]kvs.Operation) []string {
+	requestID := generateTransactionID()
+	request := kvs.Transaction_Request{
+		TransactionID: requestID,
+		Data:          putData,
 	}
 
 	const maxRetries = 3
 	const baseDelay = 100 * time.Millisecond
 
 	for attempt := range maxRetries {
-		response := kvs.Batch_Response{}
-		err := client.rpcClient.Call("KVService.Process_Batch", &request, &response)
+		response := kvs.Transaction_Response{}
+		err := client.rpcClient.Call("KVService.Process_Transaction", &request, &response)
 		if err == nil {
 			return response.Values
 		}
@@ -69,60 +78,13 @@ func (client *Client) Send_Synch_Batch(putData []kvs.BatchOperation) []string {
 	return nil // unreachable
 }
 
-// Sends a batch of RPC calls asynchronously with retry logic
-// Returns a channel that will receive the final result after all retries
-func (client *Client) Send_Asynch_Batch(putData []kvs.BatchOperation) *rpc.Call {
-	requestID := generateRequestID()
-	request := kvs.Batch_Request{
-		RequestID: requestID,
-		Data:      putData,
-	}
-	response := kvs.Batch_Response{}
-
-	// Create a synthetic Call to return immediately
-	resultCall := &rpc.Call{
-		Done: make(chan *rpc.Call, 1),
-	}
-
-	go func() {
-		const maxRetries = 3
-		const baseDelay = 100 * time.Millisecond
-
-		var lastErr error
-		for attempt := range maxRetries {
-			asyncCall := client.rpcClient.Go("KVService.Process_Batch", &request, &response, nil)
-			<-asyncCall.Done
-
-			if asyncCall.Error == nil {
-				resultCall.Reply = asyncCall.Reply
-				resultCall.Error = nil
-				resultCall.Done <- resultCall
-				return
-			}
-
-			lastErr = asyncCall.Error
-			if attempt < maxRetries-1 {
-				delay := baseDelay * time.Duration(1<<attempt)
-				log.Printf("Async RPC call failed (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, asyncCall.Error, delay)
-				time.Sleep(delay)
-			}
-		}
-
-		// All retries failed
-		resultCall.Error = lastErr
-		resultCall.Done <- resultCall
-	}()
-
-	return resultCall
-}
-
 func hashKey(key string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 	return h.Sum32()
 }
 
-func runConnection(wg *sync.WaitGroup, hosts []string, done *atomic.Bool, workload *kvs.Workload, totalOpsCompleted *uint64, asynch bool) {
+func runConnection(wg *sync.WaitGroup, hosts []string, done *atomic.Bool, workload *kvs.Workload, totalOpsCompleted *uint64) {
 	defer wg.Done()
 
 	// Dial all hosts
@@ -132,55 +94,50 @@ func runConnection(wg *sync.WaitGroup, hosts []string, done *atomic.Bool, worklo
 	}
 
 	value := strings.Repeat("x", 128)
-	const batchSize = 5000 //1024
 	clientOpsCompleted := uint64(0)
 
 	for !done.Load() {
-		// Create batches for each server
-		requests := make([][]kvs.BatchOperation, len(hosts))
+		// Create transactions for each server
+		requests := make([][kvs.Transaction_size]kvs.Operation, len(hosts))
 
 		// organize work from workload
-		for j := 0; j < batchSize; j++ {
+		for j := 0; j < kvs.Transaction_size; j++ {
 			// XXX: something may go awry here when the total number of "yields"
-			// from workload.Next() is not a clean multiple of batchSize.
+			// from workload.Next() is not a clean multiple of transaction_size.
 			op := workload.Next()
 			key := fmt.Sprintf("%d", op.Key)
 
 			// Hash key to determine which server
 			serverIndex := int(hashKey(key)) % len(hosts)
-			batchRequestData := requests[serverIndex]
-			var batchOp kvs.BatchOperation
+			transactionRequestData := requests[serverIndex]
+			var trOp kvs.Operation
 
 			if op.IsRead {
-				batchOp.Key = key
-				batchOp.Value = ""
-				batchOp.IsRead = true
+				trOp.Key = key
+				trOp.Value = ""
+				trOp.IsRead = true
 			} else {
-				batchOp.Key = key
-				batchOp.Value = value
-				batchOp.IsRead = false
+				trOp.Key = key
+				trOp.Value = value
+				trOp.IsRead = false
 			}
-			batchRequestData = append(batchRequestData, batchOp)
-			requests[serverIndex] = batchRequestData
+			transactionRequestData[j] = trOp
+			requests[serverIndex] = transactionRequestData
 			clientOpsCompleted++
 		}
 
-		// Send batches to each server
+		// Send transactions to each server
 		for i := 0; i < len(hosts); i++ {
-			batchRequestData := requests[i]
-			if len(batchRequestData) > 0 {
-				if asynch {
-					clients[i].Send_Asynch_Batch(batchRequestData)
-				} else {
-					clients[i].Send_Synch_Batch(batchRequestData)
-				}
+			transactionRequestData := requests[i]
+			if len(transactionRequestData) > 0 {
+				clients[i].Begin(transactionRequestData)
 			}
 		}
 	}
 	atomic.AddUint64(totalOpsCompleted, clientOpsCompleted) // TODO: only really accurate after at-least-once
 }
 
-func runClient(id int, hosts []string, done *atomic.Bool, workload *kvs.Workload, numConnections int, resultsCh chan<- uint64, asynch bool) {
+func runClient(id int, hosts []string, done *atomic.Bool, workload *kvs.Workload, numConnections int, resultsCh chan<- uint64) {
 	var wg sync.WaitGroup
 	totalOpsCompleted := uint64(0)
 
@@ -189,7 +146,7 @@ func runClient(id int, hosts []string, done *atomic.Bool, workload *kvs.Workload
 		wg.Add(1)
 	}
 	for connId := 0; connId < numConnections; connId++ {
-		go runConnection(&wg, hosts, done, workload, &totalOpsCompleted, asynch)
+		go runConnection(&wg, hosts, done, workload, &totalOpsCompleted)
 	}
 
 	fmt.Println("waiting for connections to finish")
@@ -218,9 +175,6 @@ func main() {
 	secs := flag.Int("secs", 30, "Duration in seconds for each client to run")
 	numConnections := flag.Int("connections", 1, "Number of connections per client")
 
-	// Change this value to run asynchronously
-	asynch := flag.Bool("asynch", false, "Enable asynchronous RPC calls")
-
 	flag.Parse()
 
 	if len(hosts) == 0 {
@@ -232,9 +186,8 @@ func main() {
 			"theta %.2f\n"+
 			"workload %s\n"+
 			"secs %d\n"+
-			"connections %d\n"+
-			"Asynch RPC %t\n",
-		hosts, *theta, *workload, *secs, *numConnections, *asynch,
+			"connections %d\n",
+		hosts, *theta, *workload, *secs, *numConnections,
 	)
 
 	start := time.Now()
@@ -245,7 +198,7 @@ func main() {
 	clientId := 0
 	go func(clientId int) {
 		workload := kvs.NewWorkload(*workload, *theta)
-		runClient(clientId, hosts, &done, workload, *numConnections, resultsCh, *asynch)
+		runClient(clientId, hosts, &done, workload, *numConnections, resultsCh)
 	}(clientId)
 
 	time.Sleep(time.Duration(*secs) * time.Second)
